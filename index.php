@@ -2,6 +2,8 @@
 
 error_reporting(E_ALL); ini_set('display_errors', 1);
 
+define('STORAGE', 'http://storage.qdl.ink');
+
 $actions = Array(
     'token' => function()
     {
@@ -9,11 +11,9 @@ $actions = Array(
     },
     'shorten' => function()
     {
-        $data = data(['token', 'url', 'custom']);
+        extract(data(['token', 'url', 'custom']));
         
-        $token = $data['token'];
-        $url = $data['url'];
-        $block = $data['custom'];
+        $block = $custom;
 
         $group = verify_token($token);
 
@@ -21,17 +21,11 @@ $actions = Array(
         {
             return error(true, 'Invalid Token');
         }
-
-        var_dump($group);
-        exit;
-
-        if ($token && filter_var($url, FILTER_VALIDATE_URL) && !$block || ctype_alnum($block))
-        {
-            $link = Array('url' => $url);
-            $result = $sharddrive->store(json_encode($link), $block, 'links', $token);
-            echo json_encode($result);
-        }
-        return $value;
+        
+        $link = Array('url' => $url);
+        $result = $sharddrive->store(json_encode($link), $block, 'links', $token);
+        $result = file_post_contents(STORAGE . "/create?link&$group", Array('data' => $link));
+        return error(false, $result);
     },
     'account' => Array(
         'login' => function()
@@ -54,6 +48,8 @@ route(explode('/', $_SERVER['SCRIPT_NAME']), $actions);
 
 //echo "no valid method called";
 
+
+/* Handle General Usage */
 $query = $_SERVER['QUERY_STRING'];
 if (!empty($query) && strlen($query) < 200)
 {
@@ -83,20 +79,13 @@ if (!empty($query) && strlen($query) < 200)
 }
 
 
-
-
-
-
-
+/* Handle all other cases */
 
 /* Bootstrap Environment if Necessary */
-
 build(".", $actions);
 
-
 /* serve homepage */
-echo '<h1>Welcome to qdl.ink</h1><form><div><label for="uname">Enter link to shorten: </label><input type="text" id="link" name="link"></div><div><button>Submit</button></div></form>';
-
+route(['default'], ['default' => []]);
 
 exit;
 
@@ -109,10 +98,10 @@ exit;
 
 function issue_token()
 {
-    $group = file_get_contents("http://storage.qdl.ink/?group");
+    $group = file_get_contents(STORAGE . "/?group");
     if ($group)
     {
-        $time = round((microtime(true) + 10) * 100000) % 360000000;
+        $time = round((microtime(true) + 10) * 10000) % 36000000;
         $token = journal(dechex(strrev($time) + 268435456));
         //$token = (time() + 1) * rand(1, 9);
         $hash = sha1($token);
@@ -134,11 +123,17 @@ function verify_token($fragment)
 {
     $hours = Array(date('YmdH'), date('YmdH', strtotime('-1 hour')));
     $token = '1' . $fragment;
+    $valid = strrev(hexdec($token) - 268435456);
+    $time = round((microtime(true)) * 10000) % 36000000;
     $hash = sha1($token);
     $group = '';
     $path = journal(__DIR__ . "/data/tokens/");
 
-    journal($hash);
+    journal("valid at $valid, time is $time");
+    if ($valid > $time)
+    {
+        return error(true, 'You are too fast, please take a rest...');
+    }
 
     foreach ($hours as $hour)
     {
@@ -150,6 +145,7 @@ function verify_token($fragment)
             {
                 if (!empty($group))
                 {
+                    journal("unlinking $hour/$hash");
                     unlink("$path/$hour/$hash");
                 }
             }
@@ -178,6 +174,8 @@ function build($path, $actions)
     }
 }
 
+
+
 function route($request, $actions)
 {
     $context = array_shift($request);
@@ -192,7 +190,7 @@ function route($request, $actions)
         
         if (is_array($actions[$context]))
         {
-            if (count($request) - 1)
+            if (count($request) > 0)
             {
                 route($request, $actions[$context]);
             }
@@ -202,7 +200,7 @@ function route($request, $actions)
 
                 if (file_exists("$path/index.html"))
                 {
-                    echo file_get_contents($path);
+                    echo file_get_contents("$path/index.html");
                 }
                 else
                 {
@@ -218,7 +216,7 @@ function route($request, $actions)
     }
     else
     {
-        if (count($request) - 1)
+        if (count($request) > 0)
         {
             route($request, $actions);
         }
@@ -268,6 +266,29 @@ function journal($msg)
     }
 
     return $msg;
+}
+
+function sanitize($data)
+{
+    $data = trim($data);
+    $data = stripslashes($data);
+    $data = htmlspecialchars($data);
+    return $data;
+}
+
+function file_post_contents($url, $data)
+{
+    $opts = array('http' =>
+        array(
+            'method'  => 'POST',
+            'header'  => 'Content-type: application/json',
+            'content' => json_encode($data)
+        )
+    );
+    
+    $context  = stream_context_create($opts);
+    
+    return file_get_contents($url, false, $context);
 }
 
 function error($failed, $message)
