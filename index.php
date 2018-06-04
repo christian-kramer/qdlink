@@ -2,7 +2,7 @@
 
 error_reporting(E_ALL); ini_set('display_errors', 1);
 
-define('STORAGE', 'http://storage.qdl.ink');
+define('STORAGE', 'http://storage.dev.qdl.ink');
 
 $actions = Array(
     'token' => function()
@@ -12,19 +12,27 @@ $actions = Array(
     'shorten' => function()
     {
         extract(data(['token', 'url', 'custom']));
-        
-        $block = $custom;
 
+        /* verify_token provides a load-balanced group, but also throttles transactions */
         $group = verify_token($token);
 
+        if (empty($url))
+        {
+            $url = 'example.com';
+        }
         if (empty($group))
         {
             return error(true, 'Invalid Token');
         }
+
+        if (!empty($custom))
+        {
+            $group = $custom;
+        }
         
         $link = Array('url' => $url);
-        $result = $sharddrive->store(json_encode($link), $block, 'links', $token);
-        $result = file_post_contents(STORAGE . "/create?link&$group", Array('data' => $link));
+        //$result = $sharddrive->store(json_encode($link), $block, 'links', $token);
+        $result = post_json(STORAGE . "/create/?link&$group", Array('data' => $link));
         return error(false, $result);
     },
     'account' => Array(
@@ -98,7 +106,7 @@ exit;
 
 function issue_token()
 {
-    $group = file_get_contents(STORAGE . "/?group");
+    $group = file_get_contents(STORAGE . "/group");
     if ($group)
     {
         $time = round((microtime(true) + 10) * 10000) % 36000000;
@@ -276,7 +284,7 @@ function sanitize($data)
     return $data;
 }
 
-function file_post_contents($url, $data)
+function post_json($url, $data)
 {
     $opts = array('http' =>
         array(
