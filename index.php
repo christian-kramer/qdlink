@@ -16,7 +16,7 @@ $actions = Array(
 
         if (empty($url))
         {
-            return error(true, 'you didn\'t give me a URL to shorten');
+            return error(true, 'no URL provided');
         }
 
         /* verify_token provides a load-balanced group, but also throttles transactions */
@@ -64,6 +64,10 @@ $actions = Array(
         'details' => function ()
         {
             return $value;
+        },
+        'links' => function ()
+        {
+            
         }
     )
 );
