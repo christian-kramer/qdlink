@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>qdlink</title>
+    <script src="https://cdn.jsdelivr.net/npm/vue@2.5.16/dist/vue.js"></script>
+    <script src="https://www.protocle.com/mp/lib/xhr.js"></script>
+    <script>
+        'use strict';
+
+        window.addEventListener('DOMContentLoaded', e => {
+            new Vue({
+                el: 'main',
+                data() {
+                    return {
+                        token: '',
+                    }
+                },
+                methods: {
+                    getToken(json) {
+                        this.token = JSON.parse(json).token;
+                        console.log(this.token);
+                    },
+                    submit() {
+                        console.log('hi');
+                    },
+                },
+                mounted() {
+                    XHR.json('http://dev.qdl.ink/token', this.getToken);
+                },
+            });
+        });
+    </script>
+</head>
+
+<body>
+    <main>
+        <h1>Welcome to qdl.ink</h1>
+        <form action="#" v-on:submit.prevent="submit">
+            <fieldset>
+                <label for="link">Enter link to shorten:
+                    <input type="text" id="link" name="link">
+                </label>
+                <label for="link">Enter custom URL:
+                    <input type="text" id="custom" name="custom">
+                </label>
+                <input type="hidden" id="token" name="token" v-model="token">
+            </fieldset>
+            <button v-on:click.prevent="submit">Submit</button>
+        </form>
+    </main>
+</body>
+
+</html>
