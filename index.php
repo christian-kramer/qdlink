@@ -7,6 +7,7 @@ define('STORAGE', 'http://storage.dev.qdl.ink');
 $actions = Array(
     'token' => function()
     {
+        setcookie("token", 'hi christian', 0, '/', null, false, true);
         return json_encode(['token' => issue_token()]);
     },
     'shorten' => function()
@@ -14,15 +15,20 @@ $actions = Array(
         extract(data(['token', 'url', 'custom']));
 
         /* verify_token provides a load-balanced group, but also throttles transactions */
-        $group = verify_token($token);
+        $validation = json_decode(verify_token($token), true);
+
+        if ($validation['status'] === 'ERROR')
+        {
+            return json_encode($validation);
+        }
+        else
+        {
+            $group = $validation['response'];
+        }
 
         if (empty($url))
         {
             $url = 'example.com';
-        }
-        if (empty($group))
-        {
-            return error(true, 'Invalid Token');
         }
 
         if (!empty($custom))
@@ -32,8 +38,19 @@ $actions = Array(
         
         $link = Array('url' => $url);
         //$result = $sharddrive->store(json_encode($link), $block, 'links', $token);
-        $result = post_json(STORAGE . "/create/?link&$group", Array('data' => $link));
-        return error(false, $result);
+        $result = json_decode(post_json(STORAGE . "/create/?link&$group", Array('data' => $link)), true);
+        if ($result && $result['status'] === 'SUCCESS')
+        {
+            return error(false, $result['response']);
+        }
+        if ($result['status'] === 'ERROR')
+        {
+            return error(true, $result['response']);
+        }
+        else
+        {
+            return error(true, 'error establishing a database connection');
+        }
     },
     'account' => Array(
         'login' => function()
@@ -64,7 +81,21 @@ if (!empty($query) && strlen($query) < 200)
     if (ctype_alpha($query))
     {
         /* redirect */
-        echo "redirecting to $query";
+        $storage = json_decode(file_get_contents(STORAGE . "/read?link&$query"), true);
+
+        if ($storage)
+        {
+            if (isset($storage['status']) && $storage['status'] === 'ERROR')
+            {
+                echo error(true, $storage['response']);
+            }
+            else
+            {
+                header("Location: " . $storage['url']);
+            }
+            exit;
+        }
+        echo error(true, 'could not connect to database');
         exit;
     }
     else
@@ -160,7 +191,12 @@ function verify_token($fragment)
         }
     }
 
-    return $group;
+    if (empty($group))
+    {
+        return error(true, 'invalid token');
+    }
+
+    return error(false, $group);
 }
 
 function build($path, $actions)
