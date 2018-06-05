@@ -7,12 +7,17 @@ define('STORAGE', 'http://storage.dev.qdl.ink');
 $actions = Array(
     'token' => function()
     {
-        setcookie("token", 'hi christian', 0, '/', null, false, true);
+        //setcookie("token", 'hi christian', 0, '/', null, false, true);
         return json_encode(['token' => issue_token()]);
     },
     'shorten' => function()
     {
         extract(data(['token', 'url', 'custom']));
+
+        if (empty($url))
+        {
+            return error(true, 'you didn\'t give me a URL to shorten');
+        }
 
         /* verify_token provides a load-balanced group, but also throttles transactions */
         $validation = json_decode(verify_token($token), true);
@@ -24,11 +29,6 @@ $actions = Array(
         else
         {
             $group = $validation['response'];
-        }
-
-        if (empty($url))
-        {
-            $url = 'example.com';
         }
 
         if (!empty($custom))
@@ -270,31 +270,16 @@ function route($request, $actions)
 function data($keys)
 {
     $values = Array();
-    foreach ($keys as $key)
-    {
-        $values[$key] = isset($_GET[$key]) ? $_GET[$key] : '';
-    }
+    $keys = array_flip($keys);
+    
+    $jsonpost = empty(file_get_contents("php://input")) ? array() : array_intersect_key(json_decode(file_get_contents("php://input"), true), $keys);
+    $formpost = empty($_POST) ? array() : array_intersect_key($_POST, $keys);
+    $get = empty($_GET) ? array() : array_intersect_key($_GET, $keys);
+
+    $values = array_merge($jsonpost, $formpost, $get);
+
+    
     return $values;
-
-
-    var_dump($_GET);
-    exit;
-
-    if (isset($_POST[0]) || isset($_GET[0]))
-    {
-
-    }
-
-    $post = $_POST ?? $_GET;
-    //$data = count($post) ? $post : json_decode(file_get_contents('php://input'), true);
-    //$data = json_decode(file_get_contents('php://input'), true);
-
-
-
-    $data = (array)$_POST;
-    var_dump($data);
-    exit;
-    return $data;
 }
 
 
