@@ -28,17 +28,33 @@
         'use strict';
 
         window.addEventListener('DOMContentLoaded', e => {
-            new Vue({
+            var vue = new Vue({
                 el: 'main',
                 data() {
                     return {
-                        token: ''
-                    }
+                        account: {
+                            parameters: {
+                                username: '',
+                                password: ''
+                            },
+                            modes: [
+                                {
+                                    name: 'Log in',
+                                    method: 'login',
+                                },
+                                {
+                                    name: 'Sign up',
+                                    method: 'register',
+                                }
+                            ],
+                            mode: 0,
+                        }
+                    };
                 },
                 methods: {
                     getToken() {
                         XHR.json('http://dev.qdl.ink/token', function (response) {
-                            this.token = JSON.parse(response).token;
+                            //this.token = JSON.parse(response).token;
                         });
                     },
                     getUID() {
@@ -46,8 +62,8 @@
                             console.log(JSON.parse(response).response);
                         });
                     },
-                    submit(event) {
-                        console.log(event);
+                    submit(form) {
+                        console.log(this[form]);
                     },
                 },
                 mounted() {
@@ -55,6 +71,7 @@
                     this.getUID();
                 },
             });
+            console.log(vue);
         });
     </script>
 </head>
@@ -85,7 +102,7 @@
                 <div class="col-lg-12 text-center">
                     <h1 class="mt-5">The Best URL Shortener</h1>
                     <p class="lead">Crazy performant and completely scalable!</p>
-                    <form id="shorten" action="#" v-on:submit.prevent="submit">
+                    <form id="shorten" action="#" v-on:submit.prevent="submit('shorten')">
                         <div class="input-group mb-3">
                             <div class="input-group-prepend">
                                 <span class="input-group-text">URL to shorten</span>
@@ -131,34 +148,30 @@
             <div class="modal-dialog" role="document">
                 <div class="modal-content">
                     <div class="modal-header">
-                        <h5 class="modal-title" id="modalLabel">Log in</h5>
+                        <h5 class="modal-title" id="modalLabel">{{ account.modes[account.mode].name }}</h5>
                         <button type="button" class="close" data-dismiss="modal" aria-label="Close">
                             <span aria-hidden="true">&times;</span>
                         </button>
                     </div>
                     <div class="modal-body">
-                        <form id="user" action="#" v-on:submit.prevent="submit">
+                        <form id="signin" action="#" v-on:submit.prevent="submit('signin')">
                             <div class="form-group">
                                 <label for="inputUsername">Username</label>
-                                <input type="text" class="form-control" id="inputUsername" placeholder="Enter username">
+                                <input type="text" class="form-control" id="inputUsername" placeholder="Enter username" v-model="account.parameters.username">
                             </div>
                             <div class="form-group">
                                 <label for="inputPassword">Password</label>
-                                <input type="password" class="form-control" id="inputPassword" placeholder="Password">
+                                <input type="password" class="form-control" id="inputPassword" placeholder="Password" v-model="account.parameters.password">
                             </div>
-                            <div class="form-check form-check-inline">
-                                <input class="form-check-input" type="radio" name="accountAction" id="accountActionLogin" value="login" checked="checked">
-                                <label class="form-check-label" for="accountActionLogin">Log in</label>
-                            </div>
-                            <div class="form-check form-check-inline">
-                                <input class="form-check-input" type="radio" name="accountAction" id="accountActionSignup" value="signup">
-                                <label class="form-check-label" for="accountActionSignup">Sign up</label>
+                            <div class="form-check form-check-inline" v-for="mode in this.account.modes">
+                                <input class="form-check-input" type="radio" name="accountAction" v-bind:id="'account' + mode.method" v-bind:value="mode.method" v-model="account.mode">
+                                <label class="form-check-label" v-bind:for="'account' + mode.method">{{ mode.name }}</label>
                             </div>
                         </form>
                     </div>
                     <div class="modal-footer">
                         <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
-                        <button type="button" class="btn btn-primary" onclick="$('form#user')">Continue</button>
+                        <button type="submit" class="btn btn-primary" form="signin">Continue</button>
                     </div>
                 </div>
             </div>
