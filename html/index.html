@@ -22,87 +22,148 @@
             }
         }
     </style>
+    <script src="https://cdn.jsdelivr.net/npm/vue@2.5.16/dist/vue.js"></script>
+    <script src="https://www.protocle.com/mp/lib/xhr.js"></script>
+    <script>
+        'use strict';
+
+        window.addEventListener('DOMContentLoaded', e => {
+            new Vue({
+                el: 'main',
+                data() {
+                    return {
+                        token: ''
+                    }
+                },
+                methods: {
+                    getToken() {
+                        XHR.json('http://dev.qdl.ink/token', function (response) {
+                            this.token = JSON.parse(response).token;
+                        });
+                    },
+                    getUID() {
+                        XHR.json('http://dev.qdl.ink/userid', function (response) {
+                            console.log(JSON.parse(response).response);
+                        });
+                    },
+                    submit(event) {
+                        console.log(event);
+                    },
+                },
+                mounted() {
+                    this.getToken();
+                    this.getUID();
+                },
+            });
+        });
+    </script>
 </head>
 
 <body>
-    <!-- Navigation -->
-    <nav class="navbar navbar-expand-lg navbar-dark bg-dark fixed-top">
-        <div class="container">
-            <a class="navbar-brand" href="#">qdl.ink</a>
-            <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarResponsive" aria-controls="navbarResponsive"
-                aria-expanded="false" aria-label="Toggle navigation">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-            <div class="collapse navbar-collapse" id="navbarResponsive">
-                <ul class="navbar-nav ml-auto">
-                    <li class="nav-item">
-                        <a class="nav-link" data-toggle="modal" data-target="#exampleModal" href="#">Log in</a>
-                    </li>
-                </ul>
+    <main>
+        <!-- Navigation -->
+        <nav class="navbar navbar-expand-lg navbar-dark bg-dark fixed-top">
+            <div class="container">
+                <a class="navbar-brand" href="#">qdl.ink</a>
+                <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarResponsive" aria-controls="navbarResponsive"
+                    aria-expanded="false" aria-label="Toggle navigation">
+                    <span class="navbar-toggler-icon"></span>
+                </button>
+                <div class="collapse navbar-collapse" id="navbarResponsive">
+                    <ul class="navbar-nav ml-auto">
+                        <li class="nav-item">
+                            <a class="nav-link" data-toggle="modal" data-target="#modal" href="#">Log in</a>
+                        </li>
+                    </ul>
+                </div>
             </div>
-        </div>
-    </nav>
+        </nav>
 
-    <!-- Page Content -->
-    <div class="container">
-        <div class="row">
-            <div class="col-lg-12 text-center">
-                <h1 class="mt-5">The Best URL Shortener</h1>
-                <p class="lead">Crazy performant and completely scalable!</p>
-                <div class="input-group mb-3">
-                    <div class="input-group-prepend">
-                        <span class="input-group-text">URL to shorten</span>
-                    </div>
-                    <textarea class="form-control" placeholder="https://www.youtube.com/watch?v=dQw4w9WgXcQ" aria-label="URL to shorten"></textarea>
-                </div>
-                <div class="input-group mb-3">
-                    <div class="input-group-prepend">
-                        <span class="input-group-text" id="basic-addon3">http://qdl.ink?</span>
-                    </div>
-                    <input type="text" class="form-control" placeholder="(Optional)" id="basic-url" aria-describedby="basic-addon3">
-                </div>
-                <button type="button" class="btn btn-secondary btn-lg btn-block">Go</button>
-            </div>
-        </div>
-    </div>
-    <!-- Modal -->
-    <div class="modal fade" id="exampleModal" tabindex="-1" role="dialog" aria-labelledby="exampleModalLabel" aria-hidden="true">
-        <div class="modal-dialog" role="document">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="exampleModalLabel">Log in</h5>
-                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                        <span aria-hidden="true">&times;</span>
-                    </button>
-                </div>
-                <div class="modal-body">
-                    <form>
-                        <div class="form-group">
-                            <label for="exampleInputEmail1">Email address</label>
-                            <input type="email" class="form-control" id="exampleInputEmail1" aria-describedby="emailHelp" placeholder="Enter email">
+        <!-- Page Content -->
+        <div class="container">
+            <div class="row">
+                <div class="col-lg-12 text-center">
+                    <h1 class="mt-5">The Best URL Shortener</h1>
+                    <p class="lead">Crazy performant and completely scalable!</p>
+                    <form id="shorten" action="#" v-on:submit.prevent="submit">
+                        <div class="input-group mb-3">
+                            <div class="input-group-prepend">
+                                <span class="input-group-text">URL to shorten</span>
+                            </div>
+                            <textarea class="form-control" placeholder="https://www.youtube.com/watch?v=dQw4w9WgXcQ" aria-label="URL to shorten"></textarea>
                         </div>
-                        <div class="form-group">
-                            <label for="exampleInputPassword1">Password</label>
-                            <input type="password" class="form-control" id="exampleInputPassword1" placeholder="Password">
+                        <div class="input-group mb-3">
+                            <div class="input-group-prepend">
+                                <span class="input-group-text" id="basic-addon3">http://qdl.ink?</span>
+                            </div>
+                            <input type="text" class="form-control" placeholder="(Optional)" id="basic-url" aria-describedby="basic-addon3">
                         </div>
-                        <div class="form-check form-check-inline">
-                            <input class="form-check-input" type="radio" name="inlineRadioOptions" id="inlineRadio1" value="option1" checked="checked">
-                            <label class="form-check-label" for="inlineRadio1">Log in</label>
-                        </div>
-                        <div class="form-check form-check-inline">
-                            <input class="form-check-input" type="radio" name="inlineRadioOptions" id="inlineRadio2" value="option2">
-                            <label class="form-check-label" for="inlineRadio2">Sign up</label>
-                        </div>
+                        <button type="submit" class="btn btn-secondary btn-lg btn-block">Go</button>
                     </form>
                 </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
-                    <button type="button" class="btn btn-primary">Continue</button>
+            </div>
+            <hr>
+            <div class="row">
+                <div class="col-lg-12">
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th scope="col">#</th>
+                                <th scope="col">Short URL</th>
+                                <th scope="col">Long URL</th>
+                                <th scope="col">Clicks</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <th scope="row">1</th>
+                                <td>http://qdl.ink?aba</td>
+                                <td>http://www.google.com</td>
+                                <td>0</td>
+                            </tr>
+                        </tbody>
+                    </table>
                 </div>
             </div>
         </div>
-    </div>
-
+        <!-- Modal -->
+        <div class="modal fade" id="modal" tabindex="-1" role="dialog" aria-labelledby="modalLabel" aria-hidden="true">
+            <div class="modal-dialog" role="document">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="modalLabel">Log in</h5>
+                        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                            <span aria-hidden="true">&times;</span>
+                        </button>
+                    </div>
+                    <div class="modal-body">
+                        <form id="user" action="#" v-on:submit.prevent="submit">
+                            <div class="form-group">
+                                <label for="inputUsername">Username</label>
+                                <input type="text" class="form-control" id="inputUsername" placeholder="Enter username">
+                            </div>
+                            <div class="form-group">
+                                <label for="inputPassword">Password</label>
+                                <input type="password" class="form-control" id="inputPassword" placeholder="Password">
+                            </div>
+                            <div class="form-check form-check-inline">
+                                <input class="form-check-input" type="radio" name="accountAction" id="accountActionLogin" value="login" checked="checked">
+                                <label class="form-check-label" for="accountActionLogin">Log in</label>
+                            </div>
+                            <div class="form-check form-check-inline">
+                                <input class="form-check-input" type="radio" name="accountAction" id="accountActionSignup" value="signup">
+                                <label class="form-check-label" for="accountActionSignup">Sign up</label>
+                            </div>
+                        </form>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                        <button type="button" class="btn btn-primary" onclick="$('form#user')">Continue</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
     <!-- Optional JavaScript -->
     <!-- jQuery first, then Popper.js, then Bootstrap JS -->
     <script src="https://code.jquery.com/jquery-3.2.1.slim.min.js" integrity="sha384-KJ3o2DKtIkvYIK3UENzmM7KCkRr/rE9/Qpg6aAZGJwFDMVNA/GpGFF93hXpG5KkN"
