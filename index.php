@@ -5,14 +5,42 @@ error_reporting(E_ALL); ini_set('display_errors', 1);
 define('STORAGE', 'http://storage.dev.qdl.ink');
 
 $actions = Array(
-    'token' => function()
+    'token' => function ()
     {
         //setcookie("token", 'hi christian', 0, '/', null, false, true);
         return json_encode(['token' => issue_token()]);
     },
-    'shorten' => function()
+    'userid' => function ()
+    {
+        if (!empty($_COOKIE['userid']))
+        {
+            return error(false, $_COOKIE['userid']);
+        }
+
+        $group = file_get_contents(STORAGE . "/group");
+        $userid = uniqid($group);
+        $useridhash = hexdec($userid);
+        
+        $result = json_decode(post_json(STORAGE . "/create/?uid&$userid", Array('data' => array('links' => array()))), true);
+        if ($result && $result['status'] === 'SUCCESS')
+        {
+            setcookie("userid", $useridhash, 0, '/', null, false, true);
+            return error(false, "$useridhash");
+        }
+        if ($result['status'] === 'ERROR')
+        {
+            return error(true, $result['response']);
+        }
+        else
+        {
+            return error(true, 'error establishing a database connection');
+        }
+    },
+    'shorten' => function ()
     {
         extract(data(['token', 'url', 'custom']));
+
+        $userid = dechex($_COOKIE['userid']) ?? null;
 
         if (empty($url))
         {
@@ -41,6 +69,7 @@ $actions = Array(
         $result = json_decode(post_json(STORAGE . "/create/?link&$group", Array('data' => $link)), true);
         if ($result && $result['status'] === 'SUCCESS')
         {
+            post_json(STORAGE . "/update/?uid&$userid", Array('data' => array('links' => array($result['response']))));
             return error(false, $result['response']);
         }
         if ($result['status'] === 'ERROR')
@@ -53,21 +82,129 @@ $actions = Array(
         }
     },
     'account' => Array(
-        'login' => function()
+        'login' => function ()
         {
-            return $value;
+            $userid = dechex($_COOKIE['userid']);
+
+            extract(data(['token', 'username', 'password']));
+
+            if (empty($username) || empty($password) || empty($userid))
+            {
+                return error(true, 'invalid parameters');
+            }
+
+            /* verify_token provides a load-balanced group, but also throttles transactions */
+            $validation = json_decode(verify_token($token), true);
+            if ($validation['status'] === 'ERROR')
+            {
+                return json_encode($validation);
+            }
+
+            $group = username_to_group($username);
+
+            $usernamehash = sha1($username);
+            $result = json_decode(file_get_contents(STORAGE . "/read/?account&$group$usernamehash"));
+            $useridhash = hexdec($result->userid);
+
+            if ($result->username == $usernamehash && password_verify($password, $result->password))
+            {
+                setcookie("userid", $useridhash, 0, '/', null, false, true);
+                return error(false, "$useridhash");
+            }
+            else
+            {
+                return error(true, "authentication failed");
+            }
         },
         'register' => function ()
         {
-            return $value;
+            $userid = dechex($_COOKIE['userid']);
+
+            extract(data(['token', 'username', 'password']));
+
+            if (empty($username) || empty($password) || empty($userid))
+            {
+                return error(true, 'invalid parameters');
+            }
+
+            /* verify_token provides a load-balanced group, but also throttles transactions */
+            $validation = json_decode(verify_token($token), true);
+            if ($validation['status'] === 'ERROR')
+            {
+                return json_encode($validation);
+            }
+
+
+            if (!ctype_alnum($username))
+            {
+                return error(true, 'usernames must be alphanumeric');
+            }
+
+            $group = username_to_group($username);
+
+            $usernamehash = sha1($username);
+            $passwordhash = password_hash($password, PASSWORD_DEFAULT);
+
+            $payload = array(
+                'username' => $usernamehash,
+                'password' => $passwordhash,
+                'userid' => $userid
+            );
+
+            $result = json_decode(post_json(STORAGE . "/create/?account&$group$usernamehash", Array('data' => $payload)), true);
+            if ($result && $result['status'] === 'SUCCESS')
+            {
+                return error(false, hexdec($userid));
+            }
+            if ($result['status'] === 'ERROR')
+            {
+                return error(true, $result['response']);
+            }
+            else
+            {
+                return error(true, 'error establishing a database connection');
+            }
         },
         'details' => function ()
         {
-            return $value;
+            $userid = dechex($_COOKIE['userid']);
+            
+            extract(data(['token']));
+            
+            /* verify_token provides a load-balanced group, but also throttles transactions */
+            $validation = json_decode(verify_token($token), true);
+            if ($validation['status'] === 'ERROR')
+            {
+                return json_encode($validation);
+            }
+
+            return file_get_contents(STORAGE . "/props/?uid&$userid");
         },
         'links' => function ()
         {
+            $userid = dechex($_COOKIE['userid']);
             
+            extract(data(['token']));
+            
+            /* verify_token provides a load-balanced group, but also throttles transactions */
+            $validation = json_decode(verify_token($token), true);
+            if ($validation['status'] === 'ERROR')
+            {
+                return json_encode($validation);
+            }
+            
+            $linklist = json_decode(file_get_contents(STORAGE . "/read/?uid&$userid"))->links;
+
+            foreach ($linklist as $linkid)
+            {
+                $linkdetails = json_decode(file_get_contents(STORAGE . "/props/?link&$linkid"));
+
+                $links->$linkid->clicks = $linkdetails->reads ?? 0;
+                $links->$linkid->longurl = $linkdetails->data->url;
+                $links->$linkid->shorturl = "http://" . $_SERVER['HTTP_HOST'] . "?$linkid";
+            }
+
+            return json_encode($links);
         }
     )
 );
@@ -142,9 +279,10 @@ exit;
 function issue_token()
 {
     $group = file_get_contents(STORAGE . "/group");
+    $delay = 0.5;
     if ($group)
     {
-        $time = round((microtime(true) + 10) * 10000) % 36000000;
+        $time = round((microtime(true) + $delay) * 10000) % 36000000;
         $token = journal(dechex(strrev($time) + 268435456));
         //$token = (time() + 1) * rand(1, 9);
         $hash = sha1($token);
@@ -286,6 +424,22 @@ function data($keys)
     return $values;
 }
 
+function username_to_group($username)
+{
+    $myArray = str_split($username);
+    $previous = NULL;
+    $newArray = array_filter(
+        $myArray,
+        function ($value) use (&$previous) {
+            $p = $previous;
+            $previous = $value;
+            return $value != $p;
+        }
+    );
+    
+    return substr(preg_replace("/[^a-z0-9 ]/", '', strtolower(implode('', $newArray))), 0, 2);
+}
+
 
 function journal($msg)
 {
@@ -307,6 +461,14 @@ function sanitize($data)
     $data = stripslashes($data);
     $data = htmlspecialchars($data);
     return $data;
+}
+
+function ipv6_numeric($ip) {
+    $binNum = '';
+    foreach (unpack('C*', inet_pton($ip)) as $byte) {
+        $binNum .= str_pad(decbin($byte), 8, "0", STR_PAD_LEFT);
+    }
+    return base_convert(ltrim($binNum, '0'), 2, 10);
 }
 
 function post_json($url, $data)
