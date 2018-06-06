@@ -1,46 +1,23 @@
 <?php
 
-error_reporting(E_ALL); ini_set('display_errors', 1);
+//error_reporting(E_ALL); ini_set('display_errors', 1);
 
 define('STORAGE', 'http://storage.dev.qdl.ink');
+define('ALPHABET', range('a', 'e'));
+define('APPID', 'salt');
 
 $actions = Array(
     'token' => function ()
     {
         //setcookie("token", 'hi christian', 0, '/', null, false, true);
+        identify();
         return json_encode(['token' => issue_token()]);
-    },
-    'userid' => function ()
-    {
-        if (!empty($_COOKIE['userid']))
-        {
-            return error(false, $_COOKIE['userid']);
-        }
-
-        $group = file_get_contents(STORAGE . "/group");
-        $userid = uniqid($group);
-        $useridhash = hexdec($userid);
-        
-        $result = json_decode(post_json(STORAGE . "/create/?uid&$userid", Array('data' => array('links' => array()))), true);
-        if ($result && $result['status'] === 'SUCCESS')
-        {
-            setcookie("userid", $useridhash, 0, '/', null, false, true);
-            return error(false, "$useridhash");
-        }
-        if ($result['status'] === 'ERROR')
-        {
-            return error(true, $result['response']);
-        }
-        else
-        {
-            return error(true, 'error establishing a database connection');
-        }
     },
     'shorten' => function ()
     {
         extract(data(['token', 'url', 'custom']));
 
-        $userid = dechex($_COOKIE['userid']) ?? null;
+        $hash = safe($_COOKIE['account']) ?? null;
 
         if (empty($url))
         {
@@ -69,7 +46,7 @@ $actions = Array(
         $result = json_decode(post_json(STORAGE . "/create/?link&$group", Array('data' => $link)), true);
         if ($result && $result['status'] === 'SUCCESS')
         {
-            post_json(STORAGE . "/update/?uid&$userid", Array('data' => array('links' => array($result['response']))));
+            post_json(STORAGE . "/update/?account&$hash", Array('data' => array('links' => array($result['response']))));
             return error(false, $result['response']);
         }
         if ($result['status'] === 'ERROR')
@@ -84,32 +61,22 @@ $actions = Array(
     'account' => Array(
         'login' => function ()
         {
-            $userid = dechex($_COOKIE['userid']);
+            extract(data(['username', 'password']));
 
-            extract(data(['token', 'username', 'password']));
-
-            if (empty($username) || empty($password) || empty($userid))
+            if (empty($username) || empty($password))
             {
                 return error(true, 'invalid parameters');
             }
 
-            /* verify_token provides a load-balanced group, but also throttles transactions */
-            $validation = json_decode(verify_token($token), true);
-            if ($validation['status'] === 'ERROR')
+            $userid = safe($username);
+            $user = json_decode(file_get_contents(STORAGE . "/read/?uid&$userid"));
+            $hash = safe($user->account);
+            $account = json_decode(file_get_contents(STORAGE . "/read/?account&$hash"));
+
+            if (password_verify($password, $account->password))
             {
-                return json_encode($validation);
-            }
-
-            $group = username_to_group($username);
-
-            $usernamehash = sha1($username);
-            $result = json_decode(file_get_contents(STORAGE . "/read/?account&$group$usernamehash"));
-            $useridhash = hexdec($result->userid);
-
-            if ($result->username == $usernamehash && password_verify($password, $result->password))
-            {
-                setcookie("userid", $useridhash, 0, '/', null, false, true);
-                return error(false, "$useridhash");
+                setcookie("account", $user->account, 0, '/', null, false, true);
+                return error(false, "$user->account");
             }
             else
             {
@@ -118,82 +85,49 @@ $actions = Array(
         },
         'register' => function ()
         {
-            $userid = dechex($_COOKIE['userid']);
+            $hash = safe($_COOKIE['account']);
 
-            extract(data(['token', 'username', 'password']));
+            extract(data(['username', 'password']));
 
-            if (empty($username) || empty($password) || empty($userid))
+            if (empty($username) || empty($password) || empty($hash))
             {
                 return error(true, 'invalid parameters');
             }
+            
+            $userid = safe($username);
 
-            /* verify_token provides a load-balanced group, but also throttles transactions */
-            $validation = json_decode(verify_token($token), true);
-            if ($validation['status'] === 'ERROR')
+            /* retrieve account file */
+            $account = json_decode(file_get_contents(STORAGE . "/read/?account&$hash"));
+
+            /* write password property to account file */
+            $account->password = password_hash($password, PASSWORD_DEFAULT);
+            journal("writing password to /update/?account&$hash");
+            $result = json_decode(post_json(STORAGE . "/update/?account&$hash", Array('data' => $account)), true);
+            if (!$result || (isset($result['status']) && $result['status'] === 'ERROR'))
             {
-                return json_encode($validation);
+                return $result;
             }
 
-
-            if (!ctype_alnum($username))
+            /* write account number to user file */
+            journal("writing " . $_COOKIE['account'] . " account to /update/?uid&$userid");
+            $result = json_decode(post_json(STORAGE . "/update/?uid&$userid", Array('data' => array('account' => $_COOKIE['account']))), true);
+            if (!$result || (isset($result['status']) && $result['status'] === 'ERROR'))
             {
-                return error(true, 'usernames must be alphanumeric');
+                return $result;
             }
 
-            $group = username_to_group($username);
-
-            $usernamehash = sha1($username);
-            $passwordhash = password_hash($password, PASSWORD_DEFAULT);
-
-            $payload = array(
-                'username' => $usernamehash,
-                'password' => $passwordhash,
-                'userid' => $userid
-            );
-
-            $result = json_decode(post_json(STORAGE . "/create/?account&$group$usernamehash", Array('data' => $payload)), true);
-            if ($result && $result['status'] === 'SUCCESS')
-            {
-                return error(false, hexdec($userid));
-            }
-            if ($result['status'] === 'ERROR')
-            {
-                return error(true, $result['response']);
-            }
-            else
-            {
-                return error(true, 'error establishing a database connection');
-            }
+            return json_encode($result);
         },
         'details' => function ()
         {
-            $userid = dechex($_COOKIE['userid']);
-            
-            extract(data(['token']));
-            
-            /* verify_token provides a load-balanced group, but also throttles transactions */
-            $validation = json_decode(verify_token($token), true);
-            if ($validation['status'] === 'ERROR')
-            {
-                return json_encode($validation);
-            }
-
-            return file_get_contents(STORAGE . "/props/?uid&$userid");
+            $hash = safe($_COOKIE['account']);
+            return file_get_contents(STORAGE . "/props/?account&$hash");
         },
         'links' => function ()
         {
-            $userid = dechex($_COOKIE['userid']);
+            $hash = safe($_COOKIE['account']);
             
-            extract(data(['token']));
-            
-            /* verify_token provides a load-balanced group, but also throttles transactions */
-            $validation = json_decode(verify_token($token), true);
-            if ($validation['status'] === 'ERROR')
-            {
-                return json_encode($validation);
-            }
-            
-            $linklist = json_decode(file_get_contents(STORAGE . "/read/?uid&$userid"))->links;
+            $linklist = json_decode(file_get_contents(STORAGE . "/read/?account&$hash"))->links;
 
             foreach ($linklist as $linkid)
             {
@@ -341,6 +275,32 @@ function verify_token($fragment)
     return error(false, $group);
 }
 
+function identify()
+{
+    if (!empty($_COOKIE['account']))
+    {
+        return error(false, $_COOKIE['account']);
+    }
+
+    $account = uniqid();
+    $hash = safe($account);
+    
+    $result = json_decode(post_json(STORAGE . "/create/?account&$hash", Array('data' => array('links' => array()))), true);
+    if ($result && $result['status'] === 'SUCCESS')
+    {
+        setcookie("account", $account, 0, '/', null, false, true);
+        return error(false, "$account");
+    }
+    if ($result['status'] === 'ERROR')
+    {
+        return error(true, $result['response']);
+    }
+    else
+    {
+        return error(true, 'error establishing a database connection');
+    }
+}
+
 function build($path, $actions)
 {
     $include = '<?php include $_SERVER["DOCUMENT_ROOT"] . "/index.php" ?>';
@@ -424,6 +384,14 @@ function data($keys)
     return $values;
 }
 
+function base26($decimal)
+{
+    $base = count(ALPHABET);
+    $quotient = floor($decimal / $base);
+    $remainder = $decimal % $base;
+    return ($quotient ? base26($quotient) : '') . ALPHABET[$remainder];
+}
+
 function username_to_group($username)
 {
     $myArray = str_split($username);
@@ -469,6 +437,11 @@ function ipv6_numeric($ip) {
         $binNum .= str_pad(decbin($byte), 8, "0", STR_PAD_LEFT);
     }
     return base_convert(ltrim($binNum, '0'), 2, 10);
+}
+
+function safe($untrusted) {
+    $hash = sha1($untrusted . APPID);
+    return base26(hexdec($hash));
 }
 
 function post_json($url, $data)
