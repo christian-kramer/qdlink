@@ -3,15 +3,23 @@
 //error_reporting(E_ALL); ini_set('display_errors', 1);
 
 define('STORAGE', 'http://storage.dev.qdl.ink');
-define('ALPHABET', range('a', 'e'));
-define('APPID', 'salt');
+define('ALPHABET', range('a', 'z'));
+
+// Get your own with this: echo $(dd if=/dev/urandom bs=32 count=1) | base64
+define('APPID', 'GdD2wNM9BOubFWsv4/ldi+BwBP/yPRktFKuTzp76UcgK');
 
 $actions = Array(
     'token' => function ()
     {
         //setcookie("token", 'hi christian', 0, '/', null, false, true);
-        identify();
-        return json_encode(['token' => issue_token()]);
+        $identified = identify();
+
+        if (json_decode($identified)->status === 'SUCCESS')
+        {
+            return json_encode(['token' => issue_token()]);
+        }
+
+        return $identified;
     },
     'shorten' => function ()
     {
@@ -85,38 +93,56 @@ $actions = Array(
         },
         'register' => function ()
         {
+            if (empty($_COOKIE['account']))
+            {
+                return error(true, 'invalid account');
+            }
+
             $hash = safe($_COOKIE['account']);
 
+            /* reject if basic requirements have not been met */
             extract(data(['username', 'password']));
 
             if (empty($username) || empty($password) || empty($hash))
             {
                 return error(true, 'invalid parameters');
             }
-            
-            $userid = safe($username);
 
             /* retrieve account file */
             $account = json_decode(file_get_contents(STORAGE . "/read/?account&$hash"));
-
-            /* write password property to account file */
-            $account->password = password_hash($password, PASSWORD_DEFAULT);
-            journal("writing password to /update/?account&$hash");
-            $result = json_decode(post_json(STORAGE . "/update/?account&$hash", Array('data' => $account)), true);
-            if (!$result || (isset($result['status']) && $result['status'] === 'ERROR'))
+            if (!$account || (isset($account->status) && $account->status === 'ERROR'))
             {
-                return $result;
+                return error(true, 'account not found');
+            }
+            
+            $userid = safe($username);
+            $user = json_decode(file_get_contents(STORAGE . "/read/?uid&$userid"), true);
+
+            journal("user is showing as " . json_encode($user));
+            if (!$user || (isset($user['status']) && $user['status'] === 'ERROR'))
+            {
+                /* write password property to account file */
+                $account->password = password_hash($password, PASSWORD_DEFAULT);
+                journal("writing password to /update/?account&$hash and account looks like " . json_encode($account));
+                $result = json_decode(post_json(STORAGE . "/update/?account&$hash", Array('data' => $account)), true);
+                if (!$result || (isset($result['status']) && $result['status'] === 'ERROR'))
+                {
+                    return json_encode($result);
+                }
+
+                /* write account number to user file */
+                journal("writing " . $_COOKIE['account'] . " account to /update/?uid&$userid");
+                $result = json_decode(post_json(STORAGE . "/update/?uid&$userid", Array('data' => array('account' => $_COOKIE['account']))), true);
+                if (!$result || (isset($result['status']) && $result['status'] === 'ERROR'))
+                {
+                    return json_encode($result);
+                }
+
+                return json_encode($result);
             }
 
-            /* write account number to user file */
-            journal("writing " . $_COOKIE['account'] . " account to /update/?uid&$userid");
-            $result = json_decode(post_json(STORAGE . "/update/?uid&$userid", Array('data' => array('account' => $_COOKIE['account']))), true);
-            if (!$result || (isset($result['status']) && $result['status'] === 'ERROR'))
-            {
-                return $result;
-            }
+            return error(true, 'account exists');
 
-            return json_encode($result);
         },
         'details' => function ()
         {
@@ -279,6 +305,7 @@ function identify()
 {
     if (!empty($_COOKIE['account']))
     {
+        journal("returning visitor: " . $_COOKIE['account']);
         return error(false, $_COOKIE['account']);
     }
 
@@ -286,8 +313,10 @@ function identify()
     $hash = safe($account);
     
     $result = json_decode(post_json(STORAGE . "/create/?account&$hash", Array('data' => array('links' => array()))), true);
+    journal(json_encode(array($account, $hash, $result)));
     if ($result && $result['status'] === 'SUCCESS')
     {
+        journal("creating account $account");
         setcookie("account", $account, 0, '/', null, false, true);
         return error(false, "$account");
     }
@@ -440,8 +469,14 @@ function ipv6_numeric($ip) {
 }
 
 function safe($untrusted) {
-    $hash = sha1($untrusted . APPID);
-    return base26(hexdec($hash));
+    $hash = substr(sha1($untrusted . APPID), 0, 12);
+    $base = count(ALPHABET);
+    $base26 = base26(hexdec($hash));
+    $primary = array_search($base26[0], ALPHABET);
+    $secondary = array_search($base26[1], ALPHABET);
+    $difference = ((($secondary + $base) - $primary) % ($base - 1)) + 1;
+    $prefix = ALPHABET[($primary + $difference) % $base];
+    return "$prefix$base26";
 }
 
 function post_json($url, $data)
