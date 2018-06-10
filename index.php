@@ -54,7 +54,20 @@ $actions = Array(
         $result = json_decode(post_json(STORAGE . "/create/?link&$group", Array('data' => $link)), true);
         if ($result && $result['status'] === 'SUCCESS')
         {
-            post_json(STORAGE . "/update/?account&$hash", Array('data' => array('links' => array($result['response']))));
+            if (isset($hash))
+            {
+                $account = json_decode(file_get_contents(STORAGE . "/read/?account&$hash"));
+                if (isset($account->links))
+                {
+                    $account->links = array_merge($account->links, array($result['response']));
+                }
+                else
+                {
+                    $account->links = array($result['response']);
+                }
+                post_json(STORAGE . "/update/?account&$hash", Array('data' => $account));
+            }
+            //post_json(STORAGE . "/update/?account&$hash", Array('data' => array('links' => array($result['response']))));
             return error(false, $result['response']);
         }
         if ($result['status'] === 'ERROR')
@@ -123,6 +136,16 @@ $actions = Array(
             {
                 /* write password property to account file */
                 $account->password = password_hash($password, PASSWORD_DEFAULT);
+                
+                if (isset($account->usernames))
+                {
+                    $account->usernames = array_merge($account->usernames, array($username));
+                }
+                else
+                {
+                    $account->usernames = array($username);
+                }
+
                 journal("writing password to /update/?account&$hash and account looks like " . json_encode($account));
                 $result = json_decode(post_json(STORAGE . "/update/?account&$hash", Array('data' => $account)), true);
                 if (!$result || (isset($result['status']) && $result['status'] === 'ERROR'))
@@ -152,19 +175,25 @@ $actions = Array(
         'links' => function ()
         {
             $hash = safe($_COOKIE['account']);
-            
-            $linklist = json_decode(file_get_contents(STORAGE . "/read/?account&$hash"))->links;
 
-            foreach ($linklist as $linkid)
+            if (isset($hash))
             {
-                $linkdetails = json_decode(file_get_contents(STORAGE . "/props/?link&$linkid"));
+                $linklist = json_decode(file_get_contents(STORAGE . "/read/?account&$hash"))->links;
 
-                $links->$linkid->clicks = $linkdetails->reads ?? 0;
-                $links->$linkid->longurl = $linkdetails->data->url;
-                $links->$linkid->shorturl = "http://" . $_SERVER['HTTP_HOST'] . "?$linkid";
+                if (count($linklist))
+                {
+                    foreach ($linklist as $linkid)
+                    {
+                        $linkdetails = json_decode(file_get_contents(STORAGE . "/props/?link&$linkid"));
+        
+                        $links->$linkid->clicks = $linkdetails->reads ?? 0;
+                        $links->$linkid->longurl = $linkdetails->data->url;
+                        $links->$linkid->shorturl = "http://" . $_SERVER['HTTP_HOST'] . "?$linkid";
+                    }
+        
+                    return json_encode($links);
+                }
             }
-
-            return json_encode($links);
         }
     )
 );
@@ -182,7 +211,7 @@ if (!empty($query) && strlen($query) < 200)
     if (ctype_alpha($query))
     {
         /* redirect */
-        $storage = json_decode(file_get_contents(STORAGE . "/read?link&$query"), true);
+        $storage = json_decode(file_get_contents(STORAGE . "/read/?link&$query"), true);
 
         if ($storage)
         {

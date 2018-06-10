@@ -28,10 +28,18 @@
         'use strict';
 
         window.addEventListener('DOMContentLoaded', e => {
-            var vue = new Vue({
+            var d = document;
+            new Vue({
                 el: 'main',
                 data() {
                     return {
+                        shorten: {
+                            parameters: {
+                                token: '',
+                                url: '',
+                                custom: '',
+                            },
+                        },
                         account: {
                             parameters: {
                                 username: '',
@@ -48,31 +56,123 @@
                                 }
                             ],
                             mode: 0,
-                        }
+                        },
+                        links: []
                     };
                 },
                 methods: {
                     getToken() {
-                        XHR.json('http://dev.qdl.ink/token', function (response) {
-                            //this.token = JSON.parse(response).token;
+                        var env = this.shorten.parameters,
+                            vue = this;
+                        XHR.json('http://dev.qdl.ink/token/', function (response) {
+                            env.token = JSON.parse(response).token;
+                            console.log(env.token);
+                            vue.getLinks();
                         });
                     },
-                    getUID() {
-                        XHR.json('http://dev.qdl.ink/userid', function (response) {
-                            console.log(JSON.parse(response).response);
+                    getLinks() {
+                        var time = Date.now() / 1000,
+                            vue = this;
+                        XHR.json('http://dev.qdl.ink/account/links/', function (response) {
+                            if (response) {
+                                var hash_array = JSON.parse(response);
+                                var numeric_array = [];
+                                for (var item in hash_array) {
+                                    numeric_array.push(hash_array[item]);
+                                }
+                                vue.links = numeric_array;
+                                console.log(Date.now() / 1000 - time, response);
+                            }
                         });
                     },
-                    submit(form) {
-                        console.log(this[form]);
+                    onlyChars(e) {
+                        console.log(e);
+                        this.custom = this.custom.toLowerCase().replace(/[^a-z]/g, '');
+                    },
+                    formtype() {
+                        console.log(this);
+                        /*
+                        if (this.value) {
+                            this.value = this.value.toLowerCase.replace(/[^a-z0-9_-]/, '');
+                        }
+                        */
+                    },
+                    defaultURL(event) {
+                        if (!event.target.value) {
+                            var element = event.target;
+                            element.value = element.getAttribute('placeholder');
+                            event = d.createEvent('Event');
+                            event.initEvent('input', true, true);
+                            element.dispatchEvent(event);
+                        }
+                    },
+                    submit(method) {
+                        console.log(method);
+
+                        var vue = this,
+                            form = this[method],
+                            path = ['http://dev.qdl.ink', method],
+                            request = {
+                                account(response) {
+                                    var status = JSON.parse(response).status;
+
+                                    if (status == 'ERROR') {
+                                        /* red alert */
+                                    } else {
+                                        jQuery('#modal').modal('hide');
+                                        vue.getLinks();
+                                    }
+
+                                },
+                                shorten(response) {
+                                    vue.getToken();
+                                }
+                            };
+
+                        if (form.modes) {
+                            path.push(form.modes[form.mode].method);
+                        }
+
+                        console.log(form.parameters);
+
+                        XHR.json(XHR.url(path.join('/') + '/', form.parameters), request[method]);
                     },
                 },
                 mounted() {
+                    //this.getToken();
+                    var account = d.querySelector('#inputUsername'),
+                        shorten = d.querySelector('textarea');
                     this.getToken();
-                    this.getUID();
+                    d.querySelector('textarea').focus();
+                    jQuery('#modal').on('show.bs.modal', function (event) {
+                        setTimeout(() => {
+                            account.focus();
+                        }, 500);
+                    });
+                    jQuery('#modal').on('hide.bs.modal', function (event) {
+                        setTimeout(() => {
+                            shorten.focus();
+                        }, 500);
+                    });
                 },
             });
-            console.log(vue);
         });
+    </script>
+    <script>
+        /*
+        $(document).ready(function () {
+
+            var maxlength = $('#username').attr('pattern').match('{(.*?)}')[1].split(',').pop();
+            $('#username').attr('maxlength', maxlength);
+
+            $('#username').on('input', function () {
+                if ($(this).val()) {
+                    $(this).val($(this).val().toLowerCase().replace(/[^a-z0-9_-]/, ''));
+                }
+            });
+
+        });
+        */
     </script>
 </head>
 
@@ -107,23 +207,24 @@
                             <div class="input-group-prepend">
                                 <span class="input-group-text">URL to shorten</span>
                             </div>
-                            <textarea class="form-control" placeholder="https://www.youtube.com/watch?v=dQw4w9WgXcQ" aria-label="URL to shorten"></textarea>
+                            <textarea class="form-control" placeholder="https://www.youtube.com/watch?v=dQw4w9WgXcQ" aria-label="URL to shorten" v-model="shorten.parameters.url"
+                                v-on:blur="defaultURL" v-on:keydown.enter.prevent="submit('shorten')"></textarea>
                         </div>
                         <div class="input-group mb-3">
                             <div class="input-group-prepend">
                                 <span class="input-group-text" id="basic-addon3">http://qdl.ink?</span>
                             </div>
-                            <input type="text" class="form-control" placeholder="(Optional)" id="basic-url" aria-describedby="basic-addon3">
+                            <input type="text" class="form-control" placeholder="(Optional)" aria-describedby="basic-addon3" v-model="shorten.parameters.custom"
+                                v-on:input="onlyChars">
                         </div>
                         <button type="submit" class="btn btn-secondary btn-lg btn-block">Go</button>
                     </form>
                 </div>
             </div>
-            <hr>
-            <div class="row">
+            <div class="row mt-5" v-if="links.length">
                 <div class="col-lg-12">
-                    <table class="table table-striped">
-                        <thead>
+                    <table class="table table-bordered">
+                        <thead class="thead-light">
                             <tr>
                                 <th scope="col">#</th>
                                 <th scope="col">Short URL</th>
@@ -132,11 +233,15 @@
                             </tr>
                         </thead>
                         <tbody>
-                            <tr>
-                                <th scope="row">1</th>
-                                <td>http://qdl.ink?aba</td>
-                                <td>http://www.google.com</td>
-                                <td>0</td>
+                            <tr v-for="(link, index) in links">
+                                <th scope="row">{{ index + 1 }}</th>
+                                <td>
+                                    <a v-bind:href="link.shorturl" target="_blank">{{ link.shorturl }}</a>
+                                </td>
+                                <td>
+                                    <a v-bind:href="link.longurl" target="_blank" style="word-break: break-all;">{{ link.longurl }}</a>
+                                </td>
+                                <td>{{ link.clicks }}</td>
                             </tr>
                         </tbody>
                     </table>
@@ -154,7 +259,7 @@
                         </button>
                     </div>
                     <div class="modal-body">
-                        <form id="signin" action="#" v-on:submit.prevent="submit('signin')">
+                        <form id="signin" action="#" v-on:submit.prevent="submit('account')">
                             <div class="form-group">
                                 <label for="inputUsername">Username</label>
                                 <input type="text" class="form-control" id="inputUsername" placeholder="Enter username" v-model="account.parameters.username">
@@ -163,8 +268,9 @@
                                 <label for="inputPassword">Password</label>
                                 <input type="password" class="form-control" id="inputPassword" placeholder="Password" v-model="account.parameters.password">
                             </div>
-                            <div class="form-check form-check-inline" v-for="mode in this.account.modes">
-                                <input class="form-check-input" type="radio" name="accountAction" v-bind:id="'account' + mode.method" v-bind:value="mode.method" v-model="account.mode">
+                            <div class="form-check form-check-inline" v-for="(mode, index) in this.account.modes">
+                                <input class="form-check-input" type="radio" name="accountAction" v-bind:id="'account' + mode.method" v-bind:value="index"
+                                    v-model="account.mode">
                                 <label class="form-check-label" v-bind:for="'account' + mode.method">{{ mode.name }}</label>
                             </div>
                         </form>
