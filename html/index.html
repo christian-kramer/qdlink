@@ -33,6 +33,7 @@
                 el: 'main',
                 data() {
                     return {
+                        location: d.location.href.replace(/\/$/, ''),
                         shorten: {
                             parameters: {
                                 token: '',
@@ -64,16 +65,16 @@
                     getToken() {
                         var env = this.shorten.parameters,
                             vue = this;
-                        XHR.json('http://dev.qdl.ink/token/', function (response) {
+                        XHR.json(this.location + '/token/', function (response) {
                             env.token = JSON.parse(response).token;
-                            console.log(env.token);
+                            console.log('token is', env.token);
                             vue.getLinks();
                         });
                     },
                     getLinks() {
                         var time = Date.now() / 1000,
                             vue = this;
-                        XHR.json('http://dev.qdl.ink/account/links/', function (response) {
+                        XHR.json(this.location + '/account/links/', function (response) {
                             if (response) {
                                 var hash_array = JSON.parse(response);
                                 var numeric_array = [];
@@ -81,21 +82,13 @@
                                     numeric_array.push(hash_array[item]);
                                 }
                                 vue.links = numeric_array;
-                                console.log(Date.now() / 1000 - time, response);
+                                console.log((Date.now() / 1000 - time).toFixed(1), 'seconds to fetch links');
                             }
                         });
                     },
                     onlyChars(e) {
-                        console.log(e);
-                        this.custom = this.custom.toLowerCase().replace(/[^a-z]/g, '');
-                    },
-                    formtype() {
-                        console.log(this);
-                        /*
-                        if (this.value) {
-                            this.value = this.value.toLowerCase.replace(/[^a-z0-9_-]/, '');
-                        }
-                        */
+                        var env = this.shorten.parameters;
+                        env.custom = env.custom.toLowerCase().replace(/[^a-z]/g, '');
                     },
                     defaultURL(event) {
                         if (!event.target.value) {
@@ -111,7 +104,7 @@
 
                         var vue = this,
                             form = this[method],
-                            path = ['http://dev.qdl.ink', method],
+                            path = [this.location, method],
                             request = {
                                 account(response) {
                                     var status = JSON.parse(response).status;
@@ -212,7 +205,7 @@
                         </div>
                         <div class="input-group mb-3">
                             <div class="input-group-prepend">
-                                <span class="input-group-text" id="basic-addon3">http://qdl.ink?</span>
+                                <span class="input-group-text" id="basic-addon3">{{ location }}?</span>
                             </div>
                             <input type="text" class="form-control" placeholder="(Optional)" aria-describedby="basic-addon3" v-model="shorten.parameters.custom"
                                 v-on:input="onlyChars">
