@@ -51,7 +51,7 @@ $actions = Array(
         
         $link = Array('url' => $url);
         //$result = $sharddrive->store(json_encode($link), $block, 'links', $token);
-        $result = json_decode(post_json(STORAGE . "/create/?link&$group", Array('data' => $link)), true);
+        $result = json_decode(post_json(STORAGE . "/create/?link&$group", $link), true);
         if ($result && $result['status'] === 'SUCCESS')
         {
             if (isset($hash))
@@ -65,7 +65,7 @@ $actions = Array(
                 {
                     $account->links = array($result['response']);
                 }
-                post_json(STORAGE . "/update/?account&$hash", Array('data' => $account));
+                post_json(STORAGE . "/update/?account&$hash", $account);
             }
             //post_json(STORAGE . "/update/?account&$hash", Array('data' => array('links' => array($result['response']))));
             return error(false, $result['response']);
@@ -147,7 +147,7 @@ $actions = Array(
                 }
 
                 journal("writing password to /update/?account&$hash and account looks like " . json_encode($account));
-                $result = json_decode(post_json(STORAGE . "/update/?account&$hash", Array('data' => $account)), true);
+                $result = json_decode(post_json(STORAGE . "/update/?account&$hash", $account), true);
                 if (!$result || (isset($result['status']) && $result['status'] === 'ERROR'))
                 {
                     return json_encode($result);
@@ -155,7 +155,7 @@ $actions = Array(
 
                 /* write account number to user file */
                 journal("writing " . $_COOKIE['account'] . " account to /update/?uid&$userid");
-                $result = json_decode(post_json(STORAGE . "/update/?uid&$userid", Array('data' => array('account' => $_COOKIE['account']))), true);
+                $result = json_decode(post_json(STORAGE . "/update/?uid&$userid", array('account' => $_COOKIE['account'])), true);
                 if (!$result || (isset($result['status']) && $result['status'] === 'ERROR'))
                 {
                     return json_encode($result);
@@ -341,7 +341,7 @@ function identify()
     $account = uniqid();
     $hash = safe($account);
     
-    $result = json_decode(post_json(STORAGE . "/create/?account&$hash", Array('data' => array('links' => array()))), true);
+    $result = json_decode(post_json(STORAGE . "/create/?account&$hash", array('links' => array())), true);
     journal(json_encode(array($account, $hash, $result)));
     if ($result && $result['status'] === 'SUCCESS')
     {
