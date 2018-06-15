@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>Document</title>
+    <script src="https://www.protocle.com/mp/lib/xhr.js"></script>
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/css/bootstrap.min.css" integrity="sha384-Gn5384xqQ1aoWXA+058RXPxPg6fy4IWvTNh0E263XmFcJlSAwiGgFAW/dAiS6JXm"
+        crossorigin="anonymous">
+    <style>
+        html, body {
+            height: 100%;
+        }
+        .container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100%;
+        }
+    </style>
+    <script>
+        var d = document,
+            origin = window.location.origin,
+            url = location.search.replace('?', ''),
+            token;
+        XHR.json(origin + '/token/', function (response) {
+            token = JSON.parse(response).token;
+            console.log('token is', token);
+            console.log('url is', url);
+            setTimeout(() => {
+                XHR.json(origin + '/shorten/?token=' + token + '&url=' + url, function (response) {
+                    shortid = JSON.parse(response).response;
+                    shorturl = origin + '?' + shortid;
+                    urlinput = d.querySelector('input');
+                    history.pushState(null, '', '/?' + shortid);
+                    urlinput.value = shorturl;
+
+                    function copy() {
+                        urlinput.select();
+                        d.execCommand('copy');
+                        d.querySelector('h1').innerText = 'Link Copied to Clipboard';
+                    }
+                    urlinput.addEventListener('click', copy)
+                });
+            }, 550);
+        });
+    </script>
+</head>
+
+<body>
+    <div class="container">
+        <div class="row">
+            <div class="col-lg-12 text-center">
+                <h1>Click Link to Copy</h1>
+                <div class="input-group input-group-lg">
+                    <input type="text" class="form-control">
+                </div>
+                <a href="/" class="btn btn-secondary btn-lg mt-3">View My Links</a>
+            </div>
+        </div>
+    </div>
+</body>
+
+</html>

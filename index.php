@@ -32,6 +32,11 @@ $actions = Array(
             return error(true, 'no URL provided');
         }
 
+        if (filter_var("http://$url", FILTER_VALIDATE_URL))
+        {
+            $url = "http://$url";
+        }
+
         /* verify_token provides a load-balanced group, but also throttles transactions */
         $validation = json_decode(verify_token($token), true);
 
@@ -231,18 +236,10 @@ if (!empty($query) && strlen($query) < 200)
     else
     {
         /* url to shorten */
-        if (filter_var($query, FILTER_VALIDATE_URL))
+        if (filter_var($query, FILTER_VALIDATE_URL) || filter_var("http://$query", FILTER_VALIDATE_URL))
         {
-            echo "shortening $query";
+            echo file_get_contents("html/nogui.html");
             exit;
-        }
-        else
-        {
-            if (filter_var("http://$query", FILTER_VALIDATE_URL))
-            {
-                echo "fixing and shortening http://$query";
-                exit;
-            }
         }
     }
 }
