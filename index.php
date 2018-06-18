@@ -32,7 +32,7 @@ $actions = Array(
             return error(true, 'no URL provided');
         }
 
-        if (filter_var("http://$url", FILTER_VALIDATE_URL))
+        if (!filter_var("$url", FILTER_VALIDATE_URL) && filter_var("http://$url", FILTER_VALIDATE_URL))
         {
             $url = "http://$url";
         }
