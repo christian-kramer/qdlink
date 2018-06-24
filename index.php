@@ -2,7 +2,16 @@
 
 //error_reporting(E_ALL); ini_set('display_errors', 1);
 
-define('STORAGE', 'http://storage.dev.qdl.ink');
+ini_set('default_socket_timeout', 5);
+
+while (!$exit)
+{
+    $id = rand(0,0);
+    $uri = "http://storage. $id .dev.qdl.ink";
+    $exit = file_get_contents($uri);
+}
+
+define('STORAGE', $uri);
 define('ALPHABET', range('a', 'z'));
 
 // Get your own with this: echo $(dd if=/dev/urandom bs=32 count=1) | base64
