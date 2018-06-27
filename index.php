@@ -4,14 +4,33 @@
 
 ini_set('default_socket_timeout', 5);
 
-while (!$exit)
+$gateways = range(0,1);
+$group = null;
+$attempts = 0;
+$gateway = rand(0, count($gateways));
+
+while(!$group && $attempts < 8)
 {
-    $id = rand(0,0);
-    $uri = "http://storage. $id .dev.qdl.ink";
-    $exit = file_get_contents($uri);
+    $gateway = ($gateway + 1) % count($gateways);
+    $url = "http://storage$gateway.qdl.ink";
+    $group = file_get_contents($url  . '/group/');
+    $attempts++;
 }
 
-define('STORAGE', $uri);
+journal($url);
+define('STORAGE', $url);
+
+/*
+if (true)
+{
+    define('STORAGE', "http://storage0.dev.qdl.ink");
+}
+else
+{
+    define('STORAGE', "http://storage1.dev.qdl.ink");
+}
+*/
+
 define('ALPHABET', range('a', 'z'));
 
 // Get your own with this: echo $(dd if=/dev/urandom bs=32 count=1) | base64
